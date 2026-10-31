@@ -7,6 +7,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -23,7 +24,15 @@ import java.util.List;
 import java.util.Objects;
 
 @Entity
-@Table(name = "defense_videos")
+@Table(name = "defense_videos", indexes = {
+        @Index(name = "idx_video_view_count", columnList = "view_count"),
+        @Index(name = "idx_video_like_count", columnList = "like_count"),
+        @Index(name = "idx_video_comment_count", columnList = "comment_count"),
+        @Index(name = "idx_video_published_at", columnList = "published_at"),
+        @Index(name = "idx_video_duration", columnList = "duration_seconds"),
+        @Index(name = "idx_video_channel", columnList = "channel_id"),
+        @Index(name = "idx_video_dissertation", columnList = "dissertation_id")
+})
 @Getter
 @Setter
 @NoArgsConstructor

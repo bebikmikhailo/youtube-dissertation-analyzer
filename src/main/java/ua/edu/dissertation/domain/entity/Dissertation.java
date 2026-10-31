@@ -7,6 +7,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -22,7 +23,10 @@ import java.util.List;
 import java.util.Objects;
 
 @Entity
-@Table(name = "dissertations")
+@Table(name = "dissertations", indexes = {
+        @Index(name = "idx_dissertation_specialty", columnList = "specialty"),
+        @Index(name = "idx_dissertation_council", columnList = "council_id")
+})
 @Getter
 @Setter
 @NoArgsConstructor

@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -19,7 +20,10 @@ import java.util.List;
 import java.util.Objects;
 
 @Entity
-@Table(name = "councils")
+@Table(name = "councils", indexes = {
+        @Index(name = "idx_council_name", columnList = "name"),
+        @Index(name = "idx_council_university", columnList = "university")
+})
 @Getter
 @Setter
 @NoArgsConstructor

@@ -4,6 +4,7 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -17,7 +18,9 @@ import java.util.List;
 import java.util.Objects;
 
 @Entity
-@Table(name = "channels")
+@Table(name = "channels", indexes = {
+        @Index(name = "idx_channel_name", columnList = "name")
+})
 @Getter
 @Setter
 @NoArgsConstructor

@@ -91,7 +91,7 @@ public class VideoPartsProcessor {
 
         String cleaned = title.replaceAll("(?i)\\((?:частина|part)\\s*\\d+\\)", "")
                 .replaceAll("(?i)\\b(?:частина|част\\.|ч\\.|part)\\s*\\d+\\b", "")
-                .replaceAll("[-–—()\\[\\]]+$", "")
+                .replaceAll("[-\\u2013\\u2014()\\[\\]]+$", "")
                 .trim()
                 .replaceAll("\\s+", " ");
 
