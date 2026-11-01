@@ -1,0 +1,2 @@
+org.springframework.boot.env.EnvironmentPostProcessor=ua.edu.dissertation.config.DotenvEnvironmentPostProcessor
+

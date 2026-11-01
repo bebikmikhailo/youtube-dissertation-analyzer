@@ -3,13 +3,14 @@ package ua.edu.dissertation.config;
 import io.github.cdimascio.dotenv.Dotenv;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
+import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class DotenvEnvironmentPostProcessor implements EnvironmentPostProcessor {
+public class DotenvEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
@@ -19,7 +20,12 @@ public class DotenvEnvironmentPostProcessor implements EnvironmentPostProcessor 
 
         boolean hasDotenvEntries = !envMap.isEmpty();
         if (hasDotenvEntries) {
-            environment.getPropertySources().addLast(new MapPropertySource("dotenvProperties", envMap));
+            environment.getPropertySources().addFirst(new MapPropertySource("dotenvProperties", envMap));
         }
+    }
+
+    @Override
+    public int getOrder() {
+        return Ordered.HIGHEST_PRECEDENCE;
     }
 }
