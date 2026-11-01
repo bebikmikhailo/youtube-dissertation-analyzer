@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="uk" xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(pageTitle)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${pageTitle} + ' | Аналітика захистів дисертацій'">Аналітика захистів дисертацій</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+
+<header th:fragment="header(searchText)" class="site-header">
+    <nav class="navbar navbar-expand-lg navbar-dark site-navbar">
+        <div class="container-xxl gap-3">
+            <a class="navbar-brand d-flex align-items-center gap-2" th:href="@{/defenses}">
+                <i class="bi bi-mortarboard-fill brand-icon"></i>
+                <span class="lh-sm">
+                    <span class="d-block fw-semibold">Аналітика захистів</span>
+                    <small class="brand-subtitle">дисертації на YouTube</small>
+                </span>
+            </a>
+            <form class="header-search flex-grow-1 order-last order-lg-0" th:action="@{/defenses}" method="get" role="search">
+                <div class="input-group">
+                    <span class="input-group-text header-search-scope d-none d-sm-flex">Захисти</span>
+                    <input class="form-control" type="search" name="searchText" th:value="${searchText}"
+                           maxlength="200" placeholder="Пошук за ПІБ здобувача, темою або назвою відео"
+                           aria-label="Пошук у каталозі захистів">
+                    <button class="btn header-search-button" type="submit" aria-label="Шукати">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </form>
+            <a class="nav-link header-link d-flex align-items-center gap-2" th:href="@{/defenses}">
+                <i class="bi bi-collection-play fs-5"></i>
+                <span class="lh-sm">
+                    <small class="d-block header-link-caption">Перегляд</small>
+                    <span class="fw-semibold">Каталог захистів</span>
+                </span>
+            </a>
+        </div>
+    </nav>
+    <div class="site-subnav">
+        <div class="container-xxl d-flex flex-wrap gap-1">
+            <a class="subnav-link" th:href="@{/defenses}"><i class="bi bi-list-ul me-1"></i>Усі захисти</a>
+            <a class="subnav-link" th:href="@{/defenses(sortField='VIEWS',sortDirection='DESC')}">Найпопулярніші</a>
+            <a class="subnav-link" th:href="@{/defenses(sortField='PUBLISHED_AT',sortDirection='DESC')}">Найновіші</a>
+            <a class="subnav-link" th:href="@{/defenses(sortField='COMMENTS',sortDirection='DESC')}">Найобговорюваніші</a>
+            <a class="subnav-link" th:href="@{/defenses(sortField='LIKES',sortDirection='DESC')}">Найбільше вподобань</a>
+            <a class="subnav-link" th:href="@{/defenses(sortField='DURATION',sortDirection='DESC')}">Найтриваліші</a>
+        </div>
+    </div>
+</header>
+
+<div th:fragment="flash" class="flash-messages">
+    <div th:if="${flashSuccess}" class="alert alert-success alert-dismissible fade show d-flex align-items-start gap-2" role="alert">
+        <i class="bi bi-check-circle-fill mt-1"></i>
+        <span th:text="${flashSuccess}">Повідомлення</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрити"></button>
+    </div>
+    <div th:if="${flashWarning}" class="alert alert-warning alert-dismissible fade show d-flex align-items-start gap-2" role="alert">
+        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+        <span th:text="${flashWarning}">Попередження</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрити"></button>
+    </div>
+    <div th:if="${flashError}" class="alert alert-danger alert-dismissible fade show d-flex align-items-start gap-2" role="alert">
+        <i class="bi bi-x-octagon-fill mt-1"></i>
+        <span th:text="${flashError}">Помилка</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрити"></button>
+    </div>
+</div>
+
+<footer th:fragment="footer" class="site-footer mt-5">
+    <div class="container-xxl py-4 d-flex flex-column flex-md-row justify-content-between gap-2">
+        <span>Система для аналізу переглядів захистів дисертацій на YouTube</span>
+        <span class="text-md-end">Дані отримано через YouTube Data API v3</span>
+    </div>
+</footer>
+
+<th:block th:fragment="scripts">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</th:block>
+
+</body>
+</html>
+

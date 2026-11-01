@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="uk" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Каталог захистів')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header(${filter.searchText})}"></header>
+
+<main class="container-xxl py-4">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div th:if="${filterErrors}" class="alert alert-danger" role="alert" id="filter-errors">
+        <div class="fw-semibold mb-1"><i class="bi bi-funnel me-1"></i>Фільтри не застосовано через помилки:</div>
+        <ul class="mb-0">
+            <li th:each="message : ${filterErrors}" th:text="${message}">Помилка фільтра</li>
+        </ul>
+    </div>
+
+    <div class="row g-4">
+        <aside class="col-lg-3">
+            <section class="panel mb-4" id="control-panel">
+                <h2 class="panel-title"><i class="bi bi-sliders me-2"></i>Панель керування</h2>
+                <form th:action="@{/defenses/collect}" th:object="${searchForm}" method="post" class="mb-3">
+                    <label for="query" class="form-label small fw-semibold">Пошуковий запит YouTube</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" th:field="*{query}" required minlength="3" maxlength="200"
+                               placeholder="Наприклад: захист дисертації">
+                        <button type="submit" class="btn btn-primary" title="Знайти та зберегти відео">
+                            <i class="bi bi-youtube"></i>
+                        </button>
+                    </div>
+                    <div class="form-text">Знайдені відео буде збережено, а частини захистів об'єднано автоматично.</div>
+                </form>
+                <form th:action="@{/defenses/refresh-statistics}" method="post">
+                    <button type="submit" class="btn btn-outline-primary w-100" id="refresh-statistics-button">
+                        <i class="bi bi-arrow-repeat me-1"></i>Оновити статистику
+                    </button>
+                </form>
+            </section>
+
+            <section class="panel" id="filter-panel">
+                <h2 class="panel-title"><i class="bi bi-funnel me-2"></i>Фільтри</h2>
+                <form th:action="@{/defenses}" th:object="${filter}" method="get">
+                    <input type="hidden" th:field="*{searchText}">
+                    <input type="hidden" th:field="*{sortField}">
+                    <input type="hidden" th:field="*{sortDirection}">
+
+                    <div class="mb-3">
+                        <label for="councilOrUniversity" class="form-label small fw-semibold">ЗВО</label>
+                        <select class="form-select" th:field="*{councilOrUniversity}">
+                            <option value="">Усі заклади</option>
+                            <option th:each="university : ${universities}" th:value="${university}" th:text="${university}">ЗВО</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="channelName" class="form-label small fw-semibold">Канал YouTube</label>
+                        <select class="form-select" th:field="*{channelName}">
+                            <option value="">Усі канали</option>
+                            <option th:each="channelName : ${channelNames}" th:value="${channelName}" th:text="${channelName}">Канал</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="specialty" class="form-label small fw-semibold">Спеціальність</label>
+                        <select class="form-select" th:field="*{specialty}">
+                            <option value="">Усі спеціальності</option>
+                            <option th:each="specialty : ${specialties}" th:value="${specialty}" th:text="${specialty}">Спеціальність</option>
+                        </select>
+                    </div>
+
+                    <fieldset class="mb-3">
+                        <legend class="form-label small fw-semibold mb-1">Дата публікації</legend>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <input type="date" class="form-control form-control-sm" th:field="*{publishedFrom}"
+                                       th:errorclass="is-invalid" aria-label="Дата публікації від">
+                            </div>
+                            <div class="col-6">
+                                <input type="date" class="form-control form-control-sm" th:field="*{publishedTo}"
+                                       th:errorclass="is-invalid" aria-label="Дата публікації до">
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="mb-3">
+                        <legend class="form-label small fw-semibold mb-1">Перегляди відео</legend>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <input type="number" min="0" class="form-control form-control-sm" th:field="*{minViews}"
+                                       th:errorclass="is-invalid" placeholder="від" aria-label="Мінімум переглядів">
+                            </div>
+                            <div class="col-6">
+                                <input type="number" min="0" class="form-control form-control-sm" th:field="*{maxViews}"
+                                       th:errorclass="is-invalid" placeholder="до" aria-label="Максимум переглядів">
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Застосувати</button>
+                        <a class="btn btn-light border" th:href="@{/defenses}">Скинути фільтри</a>
+                    </div>
+                </form>
+            </section>
+        </aside>
+
+        <section class="col-lg-9">
+            <div class="results-toolbar panel d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-3">
+                <div>
+                    <h1 class="h5 mb-1">Захисти дисертацій</h1>
+                    <div class="text-secondary small" id="results-summary">
+                        Знайдено захистів: <span class="fw-semibold text-body" th:text="${defenses.size()}">0</span>,
+                        відео: <span class="fw-semibold text-body" th:text="${videoCount}">0</span>
+                        <th:block th:if="${!#strings.isEmpty(filter.searchText)}">
+                            за запитом <span class="search-term" th:text="'«' + ${filter.searchText} + '»'">запит</span>
+                        </th:block>
+                    </div>
+                </div>
+                <form th:action="@{/defenses}" method="get" class="d-flex flex-wrap align-items-center gap-2" id="sort-form">
+                    <input type="hidden" name="searchText" th:if="${!#strings.isEmpty(filter.searchText)}" th:value="${filter.searchText}">
+                    <input type="hidden" name="channelName" th:if="${!#strings.isEmpty(filter.channelName)}" th:value="${filter.channelName}">
+                    <input type="hidden" name="councilOrUniversity" th:if="${!#strings.isEmpty(filter.councilOrUniversity)}" th:value="${filter.councilOrUniversity}">
+                    <input type="hidden" name="specialty" th:if="${!#strings.isEmpty(filter.specialty)}" th:value="${filter.specialty}">
+                    <input type="hidden" name="publishedFrom" th:if="${filter.publishedFrom != null}" th:value="${filter.publishedFrom}">
+                    <input type="hidden" name="publishedTo" th:if="${filter.publishedTo != null}" th:value="${filter.publishedTo}">
+                    <input type="hidden" name="minViews" th:if="${filter.minViews != null}" th:value="${filter.minViews}">
+                    <input type="hidden" name="maxViews" th:if="${filter.maxViews != null}" th:value="${filter.maxViews}">
+                    <label for="sort-field" class="small text-secondary text-nowrap">Сортувати за:</label>
+                    <select id="sort-field" name="sortField" class="form-select form-select-sm w-auto">
+                        <option th:each="field : ${sortFields}" th:value="${field.name()}" th:text="${field.displayName}"
+                                th:selected="${field == filter.sortField}">Поле</option>
+                    </select>
+                    <select name="sortDirection" class="form-select form-select-sm w-auto" aria-label="Напрям сортування">
+                        <option value="DESC" th:selected="${filter.sortDirection == null or filter.sortDirection.name() == 'DESC'}">за спаданням</option>
+                        <option value="ASC" th:selected="${filter.sortDirection != null and filter.sortDirection.name() == 'ASC'}">за зростанням</option>
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-sort-down me-1"></i>Сортувати</button>
+                </form>
+            </div>
+
+            <div th:if="${defenses.isEmpty()}" class="panel text-center py-5" id="empty-state">
+                <i class="bi bi-camera-video-off display-6 text-secondary"></i>
+                <h2 class="h6 mt-3">Захистів не знайдено</h2>
+                <p class="text-secondary mb-0">Змініть параметри фільтрації або виконайте пошук відео на YouTube у панелі керування.</p>
+            </div>
+
+            <div th:unless="${defenses.isEmpty()}" class="panel p-0 overflow-hidden">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 defenses-table" id="defenses-table">
+                        <thead>
+                        <tr>
+                            <th scope="col">Здобувач і тема</th>
+                            <th scope="col">ЗВО / канал</th>
+                            <th scope="col">Спеціальність</th>
+                            <th scope="col" class="text-center">Частини</th>
+                            <th scope="col">Дата</th>
+                            <th scope="col" class="text-end">Тривалість</th>
+                            <th scope="col" class="text-end">Перегляди</th>
+                            <th scope="col" class="text-end">Вподобання</th>
+                            <th scope="col" class="text-end">Коментарі</th>
+                            <th scope="col"><span class="visually-hidden">Дії</span></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="defense : ${defenses}">
+                            <td class="defense-cell">
+                                <div class="fw-semibold"
+                                     th:text="${#strings.isEmpty(defense.authorFullName) ? 'Здобувача не визначено' : defense.authorFullName}">ПІБ</div>
+                                <div class="small text-secondary defense-topic" th:text="${defense.topic}">Тема дисертації</div>
+                            </td>
+                            <td>
+                                <div th:text="${defense.universityName ?: (defense.councilName ?: '-')}">ЗВО</div>
+                                <div class="small text-secondary" th:if="${defense.channelName}" th:text="${defense.channelName}">Канал</div>
+                            </td>
+                            <td class="small" th:text="${#strings.isEmpty(defense.specialty) ? '-' : defense.specialty}">Спеціальність</td>
+                            <td class="text-center">
+                                <span class="badge rounded-pill"
+                                      th:classappend="${defense.multiPart} ? 'text-bg-primary' : 'text-bg-light border'"
+                                      th:text="${defense.totalPartsCount}"
+                                      th:title="${defense.multiPart} ? 'Багаточастинний захист' : 'Одне відео'">1</span>
+                            </td>
+                            <td class="text-nowrap"
+                                th:text="${defense.firstPublishedAt != null ? #temporals.format(defense.firstPublishedAt, 'dd.MM.yyyy') : '-'}">01.01.2026</td>
+                            <td class="text-end text-nowrap" th:text="${defense.formattedTotalDuration}">0 с</td>
+                            <td class="text-end fw-semibold" th:text="${#numbers.formatInteger(defense.totalViewCount, 1, 'WHITESPACE')}">0</td>
+                            <td class="text-end" th:text="${#numbers.formatInteger(defense.totalLikeCount, 1, 'WHITESPACE')}">0</td>
+                            <td class="text-end" th:text="${#numbers.formatInteger(defense.totalCommentCount, 1, 'WHITESPACE')}">0</td>
+                            <td class="text-end text-nowrap">
+                                <button th:if="${defense.dissertationId != null}" type="button"
+                                        class="btn btn-sm btn-outline-secondary me-1"
+                                        data-bs-toggle="modal"
+                                        th:data-bs-target="'#defenseModal-' + ${defense.dissertationId}"
+                                        title="Швидкий перегляд у модальному вікні">
+                                    <i class="bi bi-window"></i>
+                                </button>
+                                <a th:if="${defense.dissertationId != null}" class="btn btn-sm btn-outline-primary"
+                                   th:href="@{/defenses/{id}(id=${defense.dissertationId})}">
+                                    <i class="bi bi-eye me-1"></i>Деталі
+                                </a>
+                                <a th:if="${defense.dissertationId == null and !defense.parts.isEmpty()}"
+                                   class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+                                   th:href="@{https://www.youtube.com/watch(v=${defense.parts[0].youtubeVideoId})}"
+                                   title="Відео ще не об'єднано із захистом">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>YouTube
+                                </a>
+
+                                <div th:if="${defense.dissertationId != null}" class="modal fade text-start"
+                                     th:id="'defenseModal-' + ${defense.dissertationId}" tabindex="-1"
+                                     th:aria-labelledby="'modalTitle-' + ${defense.dissertationId}" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <div>
+                                                    <h5 class="modal-title h6 mb-0" th:id="'modalTitle-' + ${defense.dissertationId}"
+                                                        th:text="${#strings.isEmpty(defense.authorFullName) ? 'Захист дисертації' : defense.authorFullName}">Здобувач</h5>
+                                                    <small class="text-secondary" th:text="${defense.topic}">Тема</small>
+                                                </div>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрити"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="row g-2 mb-3 text-center">
+                                                    <div class="col-sm-3 col-6">
+                                                        <div class="p-2 border rounded bg-light">
+                                                            <div class="small text-secondary">Сума переглядів</div>
+                                                            <div class="fw-bold" th:text="${#numbers.formatInteger(defense.totalViewCount, 1, 'WHITESPACE')}">0</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-sm-3 col-6">
+                                                        <div class="p-2 border rounded bg-light">
+                                                            <div class="small text-secondary">Вподобань</div>
+                                                            <div class="fw-bold" th:text="${#numbers.formatInteger(defense.totalLikeCount, 1, 'WHITESPACE')}">0</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-sm-3 col-6">
+                                                        <div class="p-2 border rounded bg-light">
+                                                            <div class="small text-secondary">Коментарів</div>
+                                                            <div class="fw-bold" th:text="${#numbers.formatInteger(defense.totalCommentCount, 1, 'WHITESPACE')}">0</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-sm-3 col-6">
+                                                        <div class="p-2 border rounded bg-light">
+                                                            <div class="small text-secondary">Тривалість</div>
+                                                            <div class="fw-bold" th:text="${defense.formattedTotalDuration}">0 с</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <h6 class="small fw-bold text-uppercase text-secondary mb-2">Частини захисту</h6>
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-bordered align-middle mb-0">
+                                                        <thead class="table-light">
+                                                        <tr>
+                                                            <th>Частина</th>
+                                                            <th>Назва відео</th>
+                                                            <th class="text-end">Тривалість</th>
+                                                            <th class="text-end">Перегляди</th>
+                                                            <th class="text-end">YouTube</th>
+                                                        </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                        <tr th:each="part : ${defense.parts}">
+                                                            <td class="fw-semibold text-nowrap" th:text="'Частина ' + ${part.partNumber}">Частина 1</td>
+                                                            <td class="small" th:text="${part.title}">Назва</td>
+                                                            <td class="text-end text-nowrap small" th:text="${part.formattedDuration}">0 с</td>
+                                                            <td class="text-end text-nowrap fw-semibold" th:text="${#numbers.formatInteger(part.viewCount, 1, 'WHITESPACE')}">0</td>
+                                                            <td class="text-end">
+                                                                <a class="btn btn-sm btn-link p-0 text-decoration-none" target="_blank" rel="noopener"
+                                                                   th:href="@{https://www.youtube.com/watch(v=${part.youtubeVideoId})}">
+                                                                    <i class="bi bi-box-arrow-up-right"></i>
+                                                                </a>
+                                                            </td>
+                                                        </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <a class="btn btn-sm btn-primary" th:href="@{/defenses/{id}(id=${defense.dissertationId})}">
+                                                    <i class="bi bi-box-arrow-in-right me-1"></i>Повна сторінка
+                                                </a>
+                                                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Закрити</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

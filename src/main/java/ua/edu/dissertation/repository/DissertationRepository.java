@@ -1,6 +1,7 @@
 package ua.edu.dissertation.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import ua.edu.dissertation.domain.entity.Dissertation;
 
@@ -14,4 +15,7 @@ public interface DissertationRepository extends JpaRepository<Dissertation, Long
     List<Dissertation> findBySpecialty(String specialty);
 
     List<Dissertation> findByCouncilId(Long councilId);
+
+    @Query("select distinct d.specialty from Dissertation d where d.specialty is not null and d.specialty <> '' order by d.specialty")
+    List<String> findDistinctSpecialties();
 }
