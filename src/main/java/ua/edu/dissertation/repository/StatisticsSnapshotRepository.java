@@ -12,4 +12,6 @@ public interface StatisticsSnapshotRepository extends JpaRepository<StatisticsSn
     List<StatisticsSnapshot> findByVideoIdOrderByCollectedAtAsc(Long videoId);
 
     List<StatisticsSnapshot> findByVideoYoutubeVideoIdOrderByCollectedAtAsc(String youtubeVideoId);
+
+    List<StatisticsSnapshot> findAllByOrderByCollectedAtAsc();
 }

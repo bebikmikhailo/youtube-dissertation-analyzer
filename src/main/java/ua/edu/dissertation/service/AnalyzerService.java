@@ -5,19 +5,32 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ua.edu.dissertation.domain.entity.DefenseVideo;
 import ua.edu.dissertation.domain.entity.Dissertation;
+import ua.edu.dissertation.domain.entity.StatisticsSnapshot;
 import ua.edu.dissertation.dto.ChannelRatingDto;
+import ua.edu.dissertation.dto.CorrelationAnalysisDto;
+import ua.edu.dissertation.dto.CorrelationResultDto;
 import ua.edu.dissertation.dto.DefenseDiscussionRatingDto;
 import ua.edu.dissertation.dto.DescriptiveStatisticsDto;
+import ua.edu.dissertation.dto.DynamicsInterval;
 import ua.edu.dissertation.dto.MetricType;
 import ua.edu.dissertation.dto.ParsedDissertationMetadata;
 import ua.edu.dissertation.dto.PresentationComparisonReport;
 import ua.edu.dissertation.dto.SpecialtyRatingDto;
 import ua.edu.dissertation.dto.SystemRatingsDto;
+import ua.edu.dissertation.dto.ViewDynamicsPointDto;
+import ua.edu.dissertation.dto.ViewDynamicsReportDto;
 import ua.edu.dissertation.dto.VideoMetricStatisticsDto;
 import ua.edu.dissertation.repository.ChannelRepository;
 import ua.edu.dissertation.repository.DefenseVideoRepository;
 import ua.edu.dissertation.repository.DissertationRepository;
+import ua.edu.dissertation.repository.StatisticsSnapshotRepository;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -25,6 +38,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,6 +52,7 @@ public class AnalyzerService {
     private final DefenseVideoRepository defenseVideoRepository;
     private final DissertationRepository dissertationRepository;
     private final ChannelRepository channelRepository;
+    private final StatisticsSnapshotRepository statisticsSnapshotRepository;
     private final DissertationMetadataParser metadataParser;
     private final CouncilPresentationAnalyzer councilPresentationAnalyzer;
 
@@ -45,11 +60,13 @@ public class AnalyzerService {
     public AnalyzerService(DefenseVideoRepository defenseVideoRepository,
                            DissertationRepository dissertationRepository,
                            ChannelRepository channelRepository,
+                           StatisticsSnapshotRepository statisticsSnapshotRepository,
                            DissertationMetadataParser metadataParser,
                            CouncilPresentationAnalyzer councilPresentationAnalyzer) {
         this.defenseVideoRepository = defenseVideoRepository;
         this.dissertationRepository = dissertationRepository;
         this.channelRepository = channelRepository;
+        this.statisticsSnapshotRepository = statisticsSnapshotRepository;
         this.metadataParser = metadataParser;
         this.councilPresentationAnalyzer = councilPresentationAnalyzer;
     }
@@ -614,6 +631,455 @@ public class AnalyzerService {
 
     public PresentationComparisonReport compareCouncils() {
         return councilPresentationAnalyzer.generateTopUniversitiesComparison();
+    }
+
+    public double обчислитиКоефіцієнтПірсона(List<? extends Number> xList, List<? extends Number> yList) {
+        return calculatePearsonCorrelation(xList, yList);
+    }
+
+    public double calculatePearsonCorrelation(List<? extends Number> xList, List<? extends Number> yList) {
+        boolean isXEmpty = xList == null || xList.isEmpty();
+        boolean isYEmpty = yList == null || yList.isEmpty();
+        boolean hasEmptyInput = isXEmpty || isYEmpty;
+        if (hasEmptyInput) {
+            return 0.0;
+        }
+
+        List<Double> validX = new ArrayList<>();
+        List<Double> validY = new ArrayList<>();
+        int minSize = Math.min(xList.size(), yList.size());
+
+        for (int i = 0; i < minSize; i++) {
+            Number xItem = xList.get(i);
+            Number yItem = yList.get(i);
+            boolean hasBothValues = xItem != null && yItem != null;
+            if (hasBothValues) {
+                validX.add(xItem.doubleValue());
+                validY.add(yItem.doubleValue());
+            }
+        }
+
+        int pairCount = validX.size();
+        boolean hasInsufficientPairs = pairCount < 2;
+        if (hasInsufficientPairs) {
+            return 0.0;
+        }
+
+        double sumX = 0.0;
+        double sumY = 0.0;
+        for (int i = 0; i < pairCount; i++) {
+            sumX += validX.get(i);
+            sumY += validY.get(i);
+        }
+        double meanX = sumX / pairCount;
+        double meanY = sumY / pairCount;
+
+        double sumProductDiff = 0.0;
+        double sumDiffSqX = 0.0;
+        double sumDiffSqY = 0.0;
+
+        for (int i = 0; i < pairCount; i++) {
+            double diffX = validX.get(i) - meanX;
+            double diffY = validY.get(i) - meanY;
+            sumProductDiff += diffX * diffY;
+            sumDiffSqX += diffX * diffX;
+            sumDiffSqY += diffY * diffY;
+        }
+
+        double varianceProduct = sumDiffSqX * sumDiffSqY;
+        boolean isZeroVarianceX = sumDiffSqX <= 1e-15;
+        boolean isZeroVarianceY = sumDiffSqY <= 1e-15;
+        boolean hasZeroVariance = isZeroVarianceX || isZeroVarianceY || varianceProduct <= 1e-15;
+        if (hasZeroVariance) {
+            return 0.0;
+        }
+
+        double denominator = Math.sqrt(varianceProduct);
+        boolean isInvalidDenominator = Double.isNaN(denominator) || Double.isInfinite(denominator) || denominator == 0.0;
+        if (isInvalidDenominator) {
+            return 0.0;
+        }
+
+        double correlation = sumProductDiff / denominator;
+        boolean isAboveMax = correlation > 1.0;
+        if (isAboveMax) {
+            return 1.0;
+        }
+        boolean isBelowMin = correlation < -1.0;
+        if (isBelowMin) {
+            return -1.0;
+        }
+
+        return correlation;
+    }
+
+    public String інтерпретуватиКореляцію(double coefficient) {
+        return interpretCorrelation(coefficient);
+    }
+
+    public String interpretCorrelation(double coefficient) {
+        boolean isUndefined = Double.isNaN(coefficient) || Double.isInfinite(coefficient);
+        if (isUndefined) {
+            return "Кореляційний зв'язок відсутній";
+        }
+
+        double absoluteValue = Math.abs(coefficient);
+        boolean isZero = absoluteValue < 1e-4;
+        if (isZero) {
+            return "Кореляційний зв'язок відсутній";
+        }
+
+        boolean isPositive = coefficient > 0.0;
+        String direction = isPositive ? "позитивний" : "негативний";
+
+        boolean isVeryStrong = absoluteValue >= 0.9;
+        if (isVeryStrong) {
+            return "Дуже сильний " + direction + " кореляційний зв'язок";
+        }
+
+        boolean isStrong = absoluteValue >= 0.7;
+        if (isStrong) {
+            return "Сильний " + direction + " кореляційний зв'язок";
+        }
+
+        boolean isModerate = absoluteValue >= 0.5;
+        if (isModerate) {
+            return "Помірний " + direction + " кореляційний зв'язок";
+        }
+
+        boolean isWeak = absoluteValue >= 0.3;
+        if (isWeak) {
+            return "Слабкий " + direction + " кореляційний зв'язок";
+        }
+
+        return "Дуже слабкий " + direction + " кореляційний зв'язок";
+    }
+
+    public String отриматиСилуКореляції(double coefficient) {
+        return getCorrelationStrength(coefficient);
+    }
+
+    public String getCorrelationStrength(double coefficient) {
+        boolean isUndefined = Double.isNaN(coefficient) || Double.isInfinite(coefficient);
+        if (isUndefined) {
+            return "Відсутня";
+        }
+
+        double absoluteValue = Math.abs(coefficient);
+        boolean isZero = absoluteValue < 1e-4;
+        if (isZero) {
+            return "Відсутня";
+        }
+
+        boolean isVeryStrong = absoluteValue >= 0.9;
+        if (isVeryStrong) {
+            return "Дуже сильна";
+        }
+
+        boolean isStrong = absoluteValue >= 0.7;
+        if (isStrong) {
+            return "Сильна";
+        }
+
+        boolean isModerate = absoluteValue >= 0.5;
+        if (isModerate) {
+            return "Помірна";
+        }
+
+        boolean isWeak = absoluteValue >= 0.3;
+        if (isWeak) {
+            return "Слабка";
+        }
+
+        return "Дуже слабка";
+    }
+
+    public CorrelationAnalysisDto обчислитиКореляції() {
+        return calculateCorrelations();
+    }
+
+    public CorrelationAnalysisDto calculateCorrelations() {
+        List<DefenseVideo> videos = defenseVideoRepository.findAll();
+        return calculateCorrelations(videos, LocalDate.now());
+    }
+
+    public CorrelationAnalysisDto обчислитиКореляції(List<DefenseVideo> videos) {
+        return calculateCorrelations(videos);
+    }
+
+    public CorrelationAnalysisDto calculateCorrelations(List<DefenseVideo> videos) {
+        return calculateCorrelations(videos, LocalDate.now());
+    }
+
+    public CorrelationAnalysisDto обчислитиКореляції(List<DefenseVideo> videos, LocalDate referenceDate) {
+        return calculateCorrelations(videos, referenceDate);
+    }
+
+    public CorrelationAnalysisDto calculateCorrelations(List<DefenseVideo> videos, LocalDate referenceDate) {
+        LocalDate effectiveDate = referenceDate != null ? referenceDate : LocalDate.now();
+        boolean isListEmpty = videos == null || videos.isEmpty();
+        if (isListEmpty) {
+            return CorrelationAnalysisDto.builder()
+                    .durationCorrelation(buildCorrelationResult("Тривалість відео", Collections.emptyList(), Collections.emptyList()))
+                    .ageDaysCorrelation(buildCorrelationResult("Дні з моменту публікації", Collections.emptyList(), Collections.emptyList()))
+                    .subtitlesCorrelation(buildCorrelationResult("Наявність субтитрів", Collections.emptyList(), Collections.emptyList()))
+                    .allCorrelations(Collections.emptyList())
+                    .totalVideosAnalyzed(0)
+                    .build();
+        }
+
+        List<Integer> durationValues = new ArrayList<>();
+        List<Integer> durationViews = new ArrayList<>();
+
+        List<Long> ageDaysValues = new ArrayList<>();
+        List<Integer> ageDaysViews = new ArrayList<>();
+
+        List<Double> subtitleValues = new ArrayList<>();
+        List<Integer> subtitleViews = new ArrayList<>();
+
+        for (DefenseVideo video : videos) {
+            boolean isVideoPresent = video != null;
+            if (isVideoPresent) {
+                int views = video.getViewCount() != null ? video.getViewCount() : 0;
+                int duration = video.getDurationSeconds() != null ? video.getDurationSeconds() : 0;
+                durationValues.add(duration);
+                durationViews.add(views);
+
+                boolean hasPublishedAt = video.getPublishedAt() != null;
+                if (hasPublishedAt) {
+                    long days = ChronoUnit.DAYS.between(video.getPublishedAt(), effectiveDate);
+                    boolean isFutureDate = days < 0;
+                    long normalizedDays = isFutureDate ? 0 : days;
+                    ageDaysValues.add(normalizedDays);
+                    ageDaysViews.add(views);
+                }
+
+                double hasSubtitlesValue = Boolean.TRUE.equals(video.getHasSubtitles()) ? 1.0 : 0.0;
+                subtitleValues.add(hasSubtitlesValue);
+                subtitleViews.add(views);
+            }
+        }
+
+        CorrelationResultDto durationCorrelation = buildCorrelationResult("Тривалість відео", durationValues, durationViews);
+        CorrelationResultDto ageDaysCorrelation = buildCorrelationResult("Дні з моменту публікації", ageDaysValues, ageDaysViews);
+        CorrelationResultDto subtitlesCorrelation = buildCorrelationResult("Наявність субтитрів", subtitleValues, subtitleViews);
+
+        List<CorrelationResultDto> allCorrelations = List.of(durationCorrelation, ageDaysCorrelation, subtitlesCorrelation);
+
+        return CorrelationAnalysisDto.builder()
+                .durationCorrelation(durationCorrelation)
+                .ageDaysCorrelation(ageDaysCorrelation)
+                .subtitlesCorrelation(subtitlesCorrelation)
+                .allCorrelations(allCorrelations)
+                .totalVideosAnalyzed(videos.size())
+                .build();
+    }
+
+    private CorrelationResultDto buildCorrelationResult(String factorName,
+                                                        List<? extends Number> xValues,
+                                                        List<? extends Number> yValues) {
+        double coefficient = calculatePearsonCorrelation(xValues, yValues);
+        String interpretation = interpretCorrelation(coefficient);
+        String strength = getCorrelationStrength(coefficient);
+        int sampleSize = Math.min(xValues != null ? xValues.size() : 0, yValues != null ? yValues.size() : 0);
+        boolean isPositive = coefficient > 0.0;
+
+        return CorrelationResultDto.builder()
+                .factorName(factorName)
+                .coefficient(coefficient)
+                .strength(strength)
+                .interpretation(interpretation)
+                .sampleSize(sampleSize)
+                .isPositive(isPositive)
+                .build();
+    }
+
+    public ViewDynamicsReportDto побудуватиДинаміку() {
+        return buildViewDynamics();
+    }
+
+    public ViewDynamicsReportDto buildViewDynamics() {
+        return buildViewDynamics(DynamicsInterval.DAYS);
+    }
+
+    public ViewDynamicsReportDto побудуватиДинаміку(DynamicsInterval interval) {
+        return buildViewDynamics(interval);
+    }
+
+    public ViewDynamicsReportDto buildViewDynamics(DynamicsInterval interval) {
+        List<StatisticsSnapshot> snapshots = statisticsSnapshotRepository.findAllByOrderByCollectedAtAsc();
+        return buildViewDynamics(snapshots, interval);
+    }
+
+    public ViewDynamicsReportDto побудуватиДинаміку(Long videoId, DynamicsInterval interval) {
+        return buildViewDynamics(videoId, interval);
+    }
+
+    public ViewDynamicsReportDto buildViewDynamics(Long videoId, DynamicsInterval interval) {
+        boolean isIdNull = videoId == null;
+        if (isIdNull) {
+            return buildEmptyDynamicsReport(interval);
+        }
+        List<StatisticsSnapshot> snapshots = statisticsSnapshotRepository.findByVideoIdOrderByCollectedAtAsc(videoId);
+        return buildViewDynamics(snapshots, interval);
+    }
+
+    public ViewDynamicsReportDto побудуватиДинаміку(String youtubeVideoId, DynamicsInterval interval) {
+        return buildViewDynamics(youtubeVideoId, interval);
+    }
+
+    public ViewDynamicsReportDto buildViewDynamics(String youtubeVideoId, DynamicsInterval interval) {
+        boolean isVideoIdBlank = youtubeVideoId == null || youtubeVideoId.isBlank();
+        if (isVideoIdBlank) {
+            return buildEmptyDynamicsReport(interval);
+        }
+        List<StatisticsSnapshot> snapshots = statisticsSnapshotRepository.findByVideoYoutubeVideoIdOrderByCollectedAtAsc(youtubeVideoId);
+        return buildViewDynamics(snapshots, interval);
+    }
+
+    public ViewDynamicsReportDto побудуватиДинаміку(List<StatisticsSnapshot> snapshots, DynamicsInterval interval) {
+        return buildViewDynamics(snapshots, interval);
+    }
+
+    public ViewDynamicsReportDto buildViewDynamics(List<StatisticsSnapshot> snapshots, DynamicsInterval interval) {
+        DynamicsInterval effectiveInterval = interval != null ? interval : DynamicsInterval.DAYS;
+        boolean isSourceEmpty = snapshots == null || snapshots.isEmpty();
+        if (isSourceEmpty) {
+            return buildEmptyDynamicsReport(effectiveInterval);
+        }
+
+        List<StatisticsSnapshot> sortedSnapshots = snapshots.stream()
+                .filter(s -> s != null && s.getCollectedAt() != null)
+                .sorted(Comparator.comparing(StatisticsSnapshot::getCollectedAt))
+                .collect(Collectors.toList());
+
+        boolean hasNoValidSnapshots = sortedSnapshots.isEmpty();
+        if (hasNoValidSnapshots) {
+            return buildEmptyDynamicsReport(effectiveInterval);
+        }
+
+        Map<LocalDate, List<StatisticsSnapshot>> bucketedSnapshots = new TreeMap<>();
+        for (StatisticsSnapshot snapshot : sortedSnapshots) {
+            LocalDate bucketDate = resolveBucketDate(snapshot.getCollectedAt().toLocalDate(), effectiveInterval);
+            bucketedSnapshots.computeIfAbsent(bucketDate, k -> new ArrayList<>()).add(snapshot);
+        }
+
+        List<ViewDynamicsPointDto> points = new ArrayList<>();
+        long previousViews = -1;
+
+        for (Map.Entry<LocalDate, List<StatisticsSnapshot>> entry : bucketedSnapshots.entrySet()) {
+            LocalDate bucketDate = entry.getKey();
+            List<StatisticsSnapshot> currentSnapshots = entry.getValue();
+
+            Map<String, StatisticsSnapshot> latestSnapshotByVideo = new LinkedHashMap<>();
+            for (StatisticsSnapshot snapshot : currentSnapshots) {
+                String videoKey = resolveSnapshotVideoKey(snapshot);
+                StatisticsSnapshot existing = latestSnapshotByVideo.get(videoKey);
+                boolean isNewerSnapshot = existing == null
+                        || snapshot.getCollectedAt().isAfter(existing.getCollectedAt());
+                if (isNewerSnapshot) {
+                    latestSnapshotByVideo.put(videoKey, snapshot);
+                }
+            }
+
+            long bucketViews = 0;
+            long bucketLikes = 0;
+            long bucketComments = 0;
+
+            for (StatisticsSnapshot latest : latestSnapshotByVideo.values()) {
+                bucketViews += latest.getViews() != null ? latest.getViews() : 0;
+                bucketLikes += latest.getLikes() != null ? latest.getLikes() : 0;
+                bucketComments += latest.getComments() != null ? latest.getComments() : 0;
+            }
+
+            int videoCount = latestSnapshotByVideo.size();
+            double averageViews = videoCount > 0 ? (double) bucketViews / videoCount : 0.0;
+
+            long viewsGrowth = 0;
+            boolean hasBaseline = previousViews >= 0;
+            if (hasBaseline) {
+                long delta = bucketViews - previousViews;
+                boolean isPositiveDelta = delta > 0;
+                viewsGrowth = isPositiveDelta ? delta : 0;
+            }
+            previousViews = bucketViews;
+
+            String periodLabel = resolvePeriodLabel(bucketDate, effectiveInterval);
+            points.add(ViewDynamicsPointDto.builder()
+                    .period(periodLabel)
+                    .date(bucketDate)
+                    .totalViews(bucketViews)
+                    .viewsGrowth(viewsGrowth)
+                    .totalLikes(bucketLikes)
+                    .totalComments(bucketComments)
+                    .snapshotCount(currentSnapshots.size())
+                    .videoCount(videoCount)
+                    .averageViews(averageViews)
+                    .build());
+        }
+
+        boolean hasPoints = !points.isEmpty();
+        long initialViews = hasPoints ? points.get(0).getTotalViews() : 0;
+        long latestViews = hasPoints ? points.get(points.size() - 1).getTotalViews() : 0;
+        long totalGrowth = Math.max(0, latestViews - initialViews);
+
+        return ViewDynamicsReportDto.builder()
+                .interval(effectiveInterval)
+                .points(points)
+                .initialViews(initialViews)
+                .latestViews(latestViews)
+                .totalGrowth(totalGrowth)
+                .totalSnapshots(sortedSnapshots.size())
+                .build();
+    }
+
+    private LocalDate resolveBucketDate(LocalDate date, DynamicsInterval interval) {
+        if (date == null) {
+            return LocalDate.now();
+        }
+        if (interval == DynamicsInterval.WEEKS) {
+            return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        }
+        if (interval == DynamicsInterval.MONTHS) {
+            return date.withDayOfMonth(1);
+        }
+        return date;
+    }
+
+    private String resolvePeriodLabel(LocalDate date, DynamicsInterval interval) {
+        if (date == null) {
+            return "";
+        }
+        if (interval == DynamicsInterval.MONTHS) {
+            return date.format(DateTimeFormatter.ofPattern("yyyy-MM"));
+        }
+        return date.format(DateTimeFormatter.ISO_LOCAL_DATE);
+    }
+
+    private String resolveSnapshotVideoKey(StatisticsSnapshot snapshot) {
+        boolean hasVideo = snapshot.getVideo() != null;
+        if (hasVideo) {
+            boolean hasVideoId = snapshot.getVideo().getId() != null;
+            if (hasVideoId) {
+                return "id:" + snapshot.getVideo().getId();
+            }
+            boolean hasYoutubeId = snapshot.getVideo().getYoutubeVideoId() != null;
+            if (hasYoutubeId) {
+                return "yt:" + snapshot.getVideo().getYoutubeVideoId();
+            }
+        }
+        return "snapshot:" + snapshot.getId();
+    }
+
+    private ViewDynamicsReportDto buildEmptyDynamicsReport(DynamicsInterval interval) {
+        return ViewDynamicsReportDto.builder()
+                .interval(interval != null ? interval : DynamicsInterval.DAYS)
+                .points(Collections.emptyList())
+                .initialViews(0)
+                .latestViews(0)
+                .totalGrowth(0)
+                .totalSnapshots(0)
+                .build();
     }
 
     private List<Integer> extractMetricList(List<DefenseVideo> videos, MetricType metric) {
