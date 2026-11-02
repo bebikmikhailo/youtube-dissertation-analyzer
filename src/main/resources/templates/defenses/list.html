@@ -29,11 +29,52 @@
                     </div>
                     <div class="form-text">Знайдені відео буде збережено, а частини захистів об'єднано автоматично.</div>
                 </form>
-                <form th:action="@{/defenses/refresh-statistics}" method="post">
+                <form th:action="@{/defenses/refresh-statistics}" method="post" class="mb-3">
                     <button type="submit" class="btn btn-outline-primary w-100" id="refresh-statistics-button">
                         <i class="bi bi-arrow-repeat me-1"></i>Оновити статистику
                     </button>
                 </form>
+
+                <div class="border-top pt-3" id="export-form-section">
+                    <h3 class="panel-title h6 mb-2"><i class="bi bi-download me-2"></i>Експорт звіту</h3>
+                    <form id="sidebar-export-form" method="get">
+                        <input type="hidden" name="searchText" th:if="${!#strings.isEmpty(filter.searchText)}" th:value="${filter.searchText}">
+                        <input type="hidden" name="channelName" th:if="${!#strings.isEmpty(filter.channelName)}" th:value="${filter.channelName}">
+                        <input type="hidden" name="councilOrUniversity" th:if="${!#strings.isEmpty(filter.councilOrUniversity)}" th:value="${filter.councilOrUniversity}">
+                        <input type="hidden" name="specialty" th:if="${!#strings.isEmpty(filter.specialty)}" th:value="${filter.specialty}">
+                        <input type="hidden" name="publishedFrom" th:if="${filter.publishedFrom != null}" th:value="${filter.publishedFrom}">
+                        <input type="hidden" name="publishedTo" th:if="${filter.publishedTo != null}" th:value="${filter.publishedTo}">
+                        <input type="hidden" name="minViews" th:if="${filter.minViews != null}" th:value="${filter.minViews}">
+                        <input type="hidden" name="maxViews" th:if="${filter.maxViews != null}" th:value="${filter.maxViews}">
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold mb-1">Формат файлу</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="exportFormatRadio" id="formatExcel" value="excel" checked>
+                                    <label class="form-check-label small" for="formatExcel">Excel (.xlsx)</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="exportFormatRadio" id="formatPdf" value="pdf">
+                                    <label class="form-check-label small" for="formatPdf">PDF (.pdf)</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="exportModeSelect" class="form-label small fw-semibold mb-1">Режим відео (FR-16)</label>
+                            <select class="form-select form-select-sm" id="exportModeSelect" name="mode">
+                                <option value="SUMMARY_ONLY" selected>Режим 1: Тільки сумарно</option>
+                                <option value="PARTS_ONLY">Режим 2: Окремо по частинах</option>
+                                <option value="BOTH">Режим 3: Обидва варіанти</option>
+                            </select>
+                        </div>
+
+                        <button type="button" class="btn btn-outline-success w-100 btn-sm" id="execute-export-button" onclick="submitExportForm()">
+                            <i class="bi bi-file-earmark-arrow-down me-1"></i>Завантажити звіт
+                        </button>
+                    </form>
+                </div>
             </section>
 
             <section class="panel" id="filter-panel">
@@ -113,26 +154,45 @@
                         </th:block>
                     </div>
                 </div>
-                <form th:action="@{/defenses}" method="get" class="d-flex flex-wrap align-items-center gap-2" id="sort-form">
-                    <input type="hidden" name="searchText" th:if="${!#strings.isEmpty(filter.searchText)}" th:value="${filter.searchText}">
-                    <input type="hidden" name="channelName" th:if="${!#strings.isEmpty(filter.channelName)}" th:value="${filter.channelName}">
-                    <input type="hidden" name="councilOrUniversity" th:if="${!#strings.isEmpty(filter.councilOrUniversity)}" th:value="${filter.councilOrUniversity}">
-                    <input type="hidden" name="specialty" th:if="${!#strings.isEmpty(filter.specialty)}" th:value="${filter.specialty}">
-                    <input type="hidden" name="publishedFrom" th:if="${filter.publishedFrom != null}" th:value="${filter.publishedFrom}">
-                    <input type="hidden" name="publishedTo" th:if="${filter.publishedTo != null}" th:value="${filter.publishedTo}">
-                    <input type="hidden" name="minViews" th:if="${filter.minViews != null}" th:value="${filter.minViews}">
-                    <input type="hidden" name="maxViews" th:if="${filter.maxViews != null}" th:value="${filter.maxViews}">
-                    <label for="sort-field" class="small text-secondary text-nowrap">Сортувати за:</label>
-                    <select id="sort-field" name="sortField" class="form-select form-select-sm w-auto">
-                        <option th:each="field : ${sortFields}" th:value="${field.name()}" th:text="${field.displayName}"
-                                th:selected="${field == filter.sortField}">Поле</option>
-                    </select>
-                    <select name="sortDirection" class="form-select form-select-sm w-auto" aria-label="Напрям сортування">
-                        <option value="DESC" th:selected="${filter.sortDirection == null or filter.sortDirection.name() == 'DESC'}">за спаданням</option>
-                        <option value="ASC" th:selected="${filter.sortDirection != null and filter.sortDirection.name() == 'ASC'}">за зростанням</option>
-                    </select>
-                    <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-sort-down me-1"></i>Сортувати</button>
-                </form>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <form th:action="@{/defenses}" method="get" class="d-flex flex-wrap align-items-center gap-2" id="sort-form">
+                        <input type="hidden" name="searchText" th:if="${!#strings.isEmpty(filter.searchText)}" th:value="${filter.searchText}">
+                        <input type="hidden" name="channelName" th:if="${!#strings.isEmpty(filter.channelName)}" th:value="${filter.channelName}">
+                        <input type="hidden" name="councilOrUniversity" th:if="${!#strings.isEmpty(filter.councilOrUniversity)}" th:value="${filter.councilOrUniversity}">
+                        <input type="hidden" name="specialty" th:if="${!#strings.isEmpty(filter.specialty)}" th:value="${filter.specialty}">
+                        <input type="hidden" name="publishedFrom" th:if="${filter.publishedFrom != null}" th:value="${filter.publishedFrom}">
+                        <input type="hidden" name="publishedTo" th:if="${filter.publishedTo != null}" th:value="${filter.publishedTo}">
+                        <input type="hidden" name="minViews" th:if="${filter.minViews != null}" th:value="${filter.minViews}">
+                        <input type="hidden" name="maxViews" th:if="${filter.maxViews != null}" th:value="${filter.maxViews}">
+                        <label for="sort-field" class="small text-secondary text-nowrap">Сортувати за:</label>
+                        <select id="sort-field" name="sortField" class="form-select form-select-sm w-auto">
+                            <option th:each="field : ${sortFields}" th:value="${field.name()}" th:text="${field.displayName}"
+                                    th:selected="${field == filter.sortField}">Поле</option>
+                        </select>
+                        <select name="sortDirection" class="form-select form-select-sm w-auto" aria-label="Напрям сортування">
+                            <option value="DESC" th:selected="${filter.sortDirection == null or filter.sortDirection.name() == 'DESC'}">за спаданням</option>
+                            <option value="ASC" th:selected="${filter.sortDirection != null and filter.sortDirection.name() == 'ASC'}">за зростанням</option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-sort-down me-1"></i>Сортувати</button>
+                    </form>
+
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="toolbar-export-dropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-download me-1"></i>Експорт
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="toolbar-export-dropdown">
+                            <li><h6 class="dropdown-header">Книга Excel (.xlsx)</h6></li>
+                            <li><a class="dropdown-item" th:href="@{/reports/excel(mode='SUMMARY_ONLY',searchText=${filter.searchText},channelName=${filter.channelName},councilOrUniversity=${filter.councilOrUniversity},specialty=${filter.specialty},publishedFrom=${filter.publishedFrom},publishedTo=${filter.publishedTo},minViews=${filter.minViews},maxViews=${filter.maxViews})}"><i class="bi bi-file-earmark-spreadsheet me-2 text-success"></i>Режим 1: Тільки сумарно</a></li>
+                            <li><a class="dropdown-item" th:href="@{/reports/excel(mode='PARTS_ONLY',searchText=${filter.searchText},channelName=${filter.channelName},councilOrUniversity=${filter.councilOrUniversity},specialty=${filter.specialty},publishedFrom=${filter.publishedFrom},publishedTo=${filter.publishedTo},minViews=${filter.minViews},maxViews=${filter.maxViews})}"><i class="bi bi-file-earmark-spreadsheet me-2 text-success"></i>Режим 2: По частинах</a></li>
+                            <li><a class="dropdown-item" th:href="@{/reports/excel(mode='BOTH',searchText=${filter.searchText},channelName=${filter.channelName},councilOrUniversity=${filter.councilOrUniversity},specialty=${filter.specialty},publishedFrom=${filter.publishedFrom},publishedTo=${filter.publishedTo},minViews=${filter.minViews},maxViews=${filter.maxViews})}"><i class="bi bi-file-earmark-spreadsheet me-2 text-success"></i>Режим 3: Обидва варіанти</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">Звіт PDF (.pdf)</h6></li>
+                            <li><a class="dropdown-item" th:href="@{/reports/pdf(mode='SUMMARY_ONLY',searchText=${filter.searchText},channelName=${filter.channelName},councilOrUniversity=${filter.councilOrUniversity},specialty=${filter.specialty},publishedFrom=${filter.publishedFrom},publishedTo=${filter.publishedTo},minViews=${filter.minViews},maxViews=${filter.maxViews})}"><i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Режим 1: Тільки сумарно</a></li>
+                            <li><a class="dropdown-item" th:href="@{/reports/pdf(mode='PARTS_ONLY',searchText=${filter.searchText},channelName=${filter.channelName},councilOrUniversity=${filter.councilOrUniversity},specialty=${filter.specialty},publishedFrom=${filter.publishedFrom},publishedTo=${filter.publishedTo},minViews=${filter.minViews},maxViews=${filter.maxViews})}"><i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Режим 2: По частинах</a></li>
+                            <li><a class="dropdown-item" th:href="@{/reports/pdf(mode='BOTH',searchText=${filter.searchText},channelName=${filter.channelName},councilOrUniversity=${filter.councilOrUniversity},specialty=${filter.specialty},publishedFrom=${filter.publishedFrom},publishedTo=${filter.publishedTo},minViews=${filter.minViews},maxViews=${filter.maxViews})}"><i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Режим 3: Обидва варіанти</a></li>
+                        </ul>
+                    </div>
+                </div>
             </div>
 
             <div th:if="${defenses.isEmpty()}" class="panel text-center py-5" id="empty-state">
@@ -292,5 +352,14 @@
 
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script>
+    function submitExportForm() {
+        var isPdf = document.getElementById('formatPdf').checked;
+        var mode = document.getElementById('exportModeSelect').value;
+        var form = document.getElementById('sidebar-export-form');
+        form.action = isPdf ? '/reports/pdf' : '/reports/excel';
+        form.submit();
+    }
+</script>
 </body>
 </html>
