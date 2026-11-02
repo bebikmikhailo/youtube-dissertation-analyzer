@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="uk" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Аналітичний дашборд')}"></head>
+<body>
+
+<header th:replace="~{fragments/layout :: header(null)}"></header>
+
+<main class="container-xxl py-4">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a class="text-decoration-none" th:href="@{/defenses}">Каталог захистів</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Аналітичний дашборд</li>
+                </ol>
+            </nav>
+            <h1 class="h3 fw-bold mb-1">Аналітичний дашборд захистів дисертацій</h1>
+            <p class="text-secondary small mb-0">Зведені показники, інтерактивні діаграми та порівняльний аналіз вчених рад топ-ЗВО України</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-primary" th:href="@{/defenses}">
+                <i class="bi bi-list-ul me-1"></i>Каталог захистів
+            </a>
+            <form th:action="@{/defenses/refresh-statistics}" method="post">
+                <button class="btn btn-primary" type="submit">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Оновити статистику
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <section class="row g-3 mb-4" id="kpi-summary-section">
+        <div class="col-sm-6 col-xl">
+            <div class="dashboard-kpi-card h-100 d-flex align-items-center gap-3">
+                <div class="kpi-icon-box kpi-icon-primary flex-shrink-0">
+                    <i class="bi bi-collection-play-fill"></i>
+                </div>
+                <div>
+                    <div class="kpi-label">Всього захистів</div>
+                    <div class="kpi-value" id="kpi-total-defenses" th:text="${summary.totalDefenses}">0</div>
+                    <small class="text-secondary" th:text="${summary.totalVideosCount + ' відеозаписів'}">0 відеозаписів</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl">
+            <div class="dashboard-kpi-card h-100 d-flex align-items-center gap-3">
+                <div class="kpi-icon-box kpi-icon-success flex-shrink-0">
+                    <i class="bi bi-eye-fill"></i>
+                </div>
+                <div>
+                    <div class="kpi-label">Сума переглядів</div>
+                    <div class="kpi-value" id="kpi-total-views" th:text="${#numbers.formatInteger(summary.totalViews, 1, 'WHITESPACE')}">0</div>
+                    <small class="text-secondary">Усі зафіксовані перегляди</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl">
+            <div class="dashboard-kpi-card h-100 d-flex align-items-center gap-3">
+                <div class="kpi-icon-box kpi-icon-info flex-shrink-0">
+                    <i class="bi bi-calculator"></i>
+                </div>
+                <div>
+                    <div class="kpi-label">Середнє значення</div>
+                    <div class="kpi-value" id="kpi-average-views" th:text="${#numbers.formatDecimal(summary.averageViews, 1, 'WHITESPACE', 1, 'POINT')}">0.0</div>
+                    <small class="text-secondary">Переглядів на один захист</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl">
+            <div class="dashboard-kpi-card h-100 d-flex align-items-center gap-3">
+                <div class="kpi-icon-box kpi-icon-secondary flex-shrink-0">
+                    <i class="bi bi-bar-chart-steps"></i>
+                </div>
+                <div>
+                    <div class="kpi-label">Медіана переглядів</div>
+                    <div class="kpi-value" id="kpi-median-views" th:text="${#numbers.formatDecimal(summary.medianViews, 1, 'WHITESPACE', 1, 'POINT')}">0.0</div>
+                    <small class="text-secondary">Стійка до викидів оцінка</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl">
+            <div class="dashboard-kpi-card h-100 d-flex align-items-center gap-3">
+                <div class="kpi-icon-box kpi-icon-warning flex-shrink-0">
+                    <i class="bi bi-layers-fill"></i>
+                </div>
+                <div>
+                    <div class="kpi-label">Багаточастинних</div>
+                    <div class="kpi-value" id="kpi-multipart-count" th:text="${summary.multiPartCount}">0</div>
+                    <small class="text-secondary">Захистів із 2+ частинами</small>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Charts Row 1: Channels & Specialties -->
+    <section class="row g-3 mb-4">
+        <div class="col-lg-7">
+            <div class="chart-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="h6 mb-0 fw-semibold text-truncate">
+                        <i class="bi bi-bar-chart-fill text-primary me-2"></i>Топ-каналів ЗВО за переглядами
+                    </h2>
+                    <span class="badge text-bg-light border small">Стовпчикова діаграма</span>
+                </div>
+                <div class="card-body">
+                    <div class="chart-canvas-container">
+                        <canvas id="channelsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="chart-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="h6 mb-0 fw-semibold text-truncate">
+                        <i class="bi bi-pie-chart-fill text-info me-2"></i>Розподіл за спеціальностями
+                    </h2>
+                    <span class="badge text-bg-light border small">Кругова діаграма</span>
+                </div>
+                <div class="card-body">
+                    <div class="chart-canvas-container">
+                        <canvas id="specialtiesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Charts Row 2: Dynamics & Correlations -->
+    <section class="row g-3 mb-4">
+        <div class="col-lg-7">
+            <div class="chart-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="h6 mb-0 fw-semibold text-truncate">
+                        <i class="bi bi-graph-up text-success me-2"></i>Динаміка переглядів у часі за знімками статистики
+                    </h2>
+                    <span class="badge text-bg-light border small">Лінійний графік</span>
+                </div>
+                <div class="card-body">
+                    <div class="chart-canvas-container">
+                        <canvas id="dynamicsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="chart-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="h6 mb-0 fw-semibold text-truncate">
+                        <i class="bi bi-sliders text-warning me-2"></i>Кореляції факторів із переглядами
+                    </h2>
+                    <span class="badge text-bg-light border small">Коефіцієнт Пірсона</span>
+                </div>
+                <div class="card-body">
+                    <div class="chart-canvas-container">
+                        <canvas id="correlationsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Supplemental Correlation Interpretation Cards -->
+    <section class="row g-3 mb-4" id="correlations-details-section" th:if="${correlations != null and !correlations.allCorrelations.isEmpty()}">
+        <div class="col-md-4" th:each="corr : ${correlations.allCorrelations}">
+            <div class="correlation-metric-card">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div class="fw-semibold text-truncate" th:text="${corr.factorName}">Фактор</div>
+                    <span class="badge rounded-pill"
+                          th:classappend="${corr.coefficient > 0.3} ? 'text-bg-success' : (${corr.coefficient < -0.1} ? 'text-bg-danger' : 'text-bg-secondary')"
+                          th:text="${#numbers.formatDecimal(corr.coefficient, 1, 2)}">0.00</span>
+                </div>
+                <div class="small text-muted mb-2">
+                    <span>Сила зв'язку: </span>
+                    <strong th:text="${corr.strength}">Відсутня</strong>
+                </div>
+                <p class="small text-secondary mb-0" th:text="${corr.interpretation}">Текстова інтерпретація результатів лінійної кореляції.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- FR-14: Council Information Presentation Comparison -->
+    <section class="mb-4" id="council-comparison-section">
+        <div class="chart-card">
+            <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                <div>
+                    <h2 class="h5 mb-0 fw-bold">
+                        <i class="bi bi-bank2 text-primary me-2"></i>Порівняння подання інформації радами топ-ЗВО
+                    </h2>
+                    <small class="text-secondary">Вимога FR-14: КПІ ім. Ігоря Сікорського, НУБіП України, КНУ імені Тараса Шевченка, НУ «Львівська політехніка»</small>
+                </div>
+                <span class="badge text-bg-primary align-self-start align-self-md-center">Аналіз метаданих (FR-14)</span>
+            </div>
+            <div class="card-body">
+                <!-- University Profiles Table -->
+                <div class="table-responsive mb-4">
+                    <table class="table table-hover align-middle comparison-profile-table mb-0" id="council-comparison-table">
+                        <thead>
+                        <tr>
+                            <th scope="col">Заклад вищої освіти</th>
+                            <th scope="col" class="text-center">Відео</th>
+                            <th scope="col" class="text-center">Автор у назві</th>
+                            <th scope="col" class="text-center">Тема в назві</th>
+                            <th scope="col" class="text-center">Ступінь у назві</th>
+                            <th scope="col" class="text-center">Поділ на частини</th>
+                            <th scope="col" class="text-center">Структуровані мітки</th>
+                            <th scope="col" class="text-center">Шифр ради</th>
+                            <th scope="col" class="text-center">Код спец.</th>
+                            <th scope="col">Особливості оформлення</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="profile : ${councilComparison.profiles}">
+                            <td class="fw-semibold text-nowrap" th:text="${profile.universityName}">Назва ЗВО</td>
+                            <td class="text-center" th:text="${profile.totalVideosAnalyzed}">0</td>
+                            <td class="text-center">
+                                <span class="badge rounded-pill text-bg-light border"
+                                      th:text="${#numbers.formatDecimal(profile.titleHasAuthorPercentage, 1, 0) + '%'}">0%</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge rounded-pill text-bg-light border"
+                                      th:text="${#numbers.formatDecimal(profile.titleHasTopicPercentage, 1, 0) + '%'}">0%</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge rounded-pill text-bg-light border"
+                                      th:text="${#numbers.formatDecimal(profile.titleHasDegreePercentage, 1, 0) + '%'}">0%</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge rounded-pill"
+                                      th:classappend="${profile.multiPartPracticeDetected} ? 'text-bg-warning' : 'text-bg-light border'"
+                                      th:text="${profile.multiPartPracticeDetected ? 'Виявлено' : 'Не виявлено'}">Не виявлено</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge rounded-pill text-bg-light border"
+                                      th:text="${#numbers.formatDecimal(profile.descriptionHasStructuredLabelsPercentage, 1, 0) + '%'}">0%</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge rounded-pill text-bg-light border"
+                                      th:text="${#numbers.formatDecimal(profile.descriptionHasCouncilCodePercentage, 1, 0) + '%'}">0%</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge rounded-pill text-bg-light border"
+                                      th:text="${#numbers.formatDecimal(profile.descriptionHasSpecialtyCodePercentage, 1, 0) + '%'}">0%</span>
+                            </td>
+                            <td class="small text-secondary" style="min-width: 240px;" th:text="${profile.styleSummary}">Стиль оформлення</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Common Features & Differences -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="panel h-100">
+                            <h3 class="panel-title text-success d-flex align-items-center gap-2">
+                                <i class="bi bi-check-circle-fill"></i>Спільні риси подання інформації
+                            </h3>
+                            <ul class="feature-list" id="common-features-list">
+                                <li th:each="feature : ${councilComparison.commonFeatures}">
+                                    <i class="bi bi-check2 text-success"></i>
+                                    <span th:text="${feature}">Спільна риса</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="panel h-100">
+                            <h3 class="panel-title text-primary d-flex align-items-center gap-2">
+                                <i class="bi bi-arrow-right-circle-fill"></i>Специфічні відмінності між радами
+                            </h3>
+                            <ul class="feature-list" id="differences-list">
+                                <li th:each="diff : ${councilComparison.differences}">
+                                    <i class="bi bi-arrow-right-short text-primary"></i>
+                                    <span th:text="${diff}">Специфічна відмінність</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytical Conclusion -->
+                <div class="conclusion-callout" id="analytical-conclusion-box">
+                    <h3 class="h6 fw-bold mb-2 text-dark">
+                        <i class="bi bi-journal-text text-primary me-2"></i>Підсумковий аналітичний висновок
+                    </h3>
+                    <p class="mb-0 text-secondary" th:text="${councilComparison.analyticalConclusion}">
+                        Текст підсумкового висновку про структуру публікацій захистів у радах ЗВО.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+
+<!-- Raw JSON Data Payload for Chart.js -->
+<script id="dashboard-data" type="application/json" th:utext="${chartsJson}">{}</script>
+
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+
+<!-- Chart.js 4.4.1 -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<script>
+    (function () {
+        'use strict';
+
+        if (typeof Chart === 'undefined') {
+            return;
+        }
+
+        const dataElement = document.getElementById('dashboard-data');
+        if (!dataElement) {
+            return;
+        }
+
+        let chartsData = {};
+        try {
+            chartsData = JSON.parse(dataElement.textContent || '{}');
+        } catch (e) {
+            chartsData = {};
+        }
+
+        const brandNavy = '#172033';
+        const brandAccent = '#0d6efd';
+        const brandSuccess = '#198754';
+        const brandInfo = '#0dcaf0';
+        const brandWarning = '#ffc107';
+        const brandDanger = '#dc3545';
+        const brandPurple = '#6f42c1';
+        const brandTeal = '#20c997';
+
+        const palette = [
+            '#0d6efd', '#20c997', '#ffc107', '#0dcaf0',
+            '#6f42c1', '#fd7e14', '#198754', '#6c757d'
+        ];
+
+        // 1. Top Channels Bar Chart
+        const channelsCanvas = document.getElementById('channelsChart');
+        if (channelsCanvas && chartsData.channelLabels && chartsData.channelLabels.length > 0) {
+            new Chart(channelsCanvas, {
+                type: 'bar',
+                data: {
+                    labels: chartsData.channelLabels,
+                    datasets: [{
+                        label: 'Сума переглядів',
+                        data: chartsData.channelViews,
+                        backgroundColor: 'rgba(13, 110, 253, 0.75)',
+                        borderColor: brandAccent,
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (ctx) {
+                                    const val = ctx.parsed.y || 0;
+                                    return 'Перегляди: ' + val.toLocaleString('uk-UA');
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                maxRotation: 25,
+                                minRotation: 0,
+                                font: { size: 11 }
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#e9ecef' },
+                            ticks: {
+                                callback: function (value) {
+                                    return value.toLocaleString('uk-UA');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 2. Specialty Distribution Pie Chart
+        const specialtiesCanvas = document.getElementById('specialtiesChart');
+        if (specialtiesCanvas && chartsData.specialtyLabels && chartsData.specialtyLabels.length > 0) {
+            new Chart(specialtiesCanvas, {
+                type: 'doughnut',
+                data: {
+                    labels: chartsData.specialtyLabels,
+                    datasets: [{
+                        label: 'Кількість захистів',
+                        data: chartsData.specialtyCounts,
+                        backgroundColor: palette.slice(0, chartsData.specialtyLabels.length),
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 12,
+                                font: { size: 11 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (ctx) {
+                                    const count = ctx.parsed || 0;
+                                    return ctx.label + ': ' + count + ' захистів';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 3. View Dynamics Line Chart
+        const dynamicsCanvas = document.getElementById('dynamicsChart');
+        if (dynamicsCanvas) {
+            const hasDynamics = chartsData.dynamicsLabels && chartsData.dynamicsLabels.length > 0;
+            const labels = hasDynamics ? chartsData.dynamicsLabels : ['Немає знімків'];
+            const dataPoints = hasDynamics ? chartsData.dynamicsViews : [0];
+
+            new Chart(dynamicsCanvas, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Загальна кількість переглядів',
+                        data: dataPoints,
+                        borderColor: brandSuccess,
+                        backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointBackgroundColor: brandSuccess,
+                        pointRadius: 4,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (ctx) {
+                                    const val = ctx.parsed.y || 0;
+                                    return 'Перегляди: ' + val.toLocaleString('uk-UA');
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11 } }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#e9ecef' },
+                            ticks: {
+                                callback: function (value) {
+                                    return value.toLocaleString('uk-UA');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 4. Correlations Horizontal Bar Chart
+        const correlationsCanvas = document.getElementById('correlationsChart');
+        if (correlationsCanvas && chartsData.correlationLabels && chartsData.correlationLabels.length > 0) {
+            const barColors = chartsData.correlationCoefficients.map(function (val) {
+                if (val > 0.3) {
+                    return 'rgba(25, 135, 84, 0.8)';
+                }
+                if (val < -0.1) {
+                    return 'rgba(220, 53, 69, 0.8)';
+                }
+                return 'rgba(13, 110, 253, 0.8)';
+            });
+
+            new Chart(correlationsCanvas, {
+                type: 'bar',
+                data: {
+                    labels: chartsData.correlationLabels,
+                    datasets: [{
+                        label: 'Коефіцієнт лінійної кореляції Пірсона',
+                        data: chartsData.correlationCoefficients,
+                        backgroundColor: barColors,
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (ctx) {
+                                    const val = ctx.parsed.x || 0;
+                                    return 'Коефіцієнт Пірсона: ' + val.toFixed(3);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            min: -1.0,
+                            max: 1.0,
+                            grid: { color: '#e9ecef' },
+                            ticks: {
+                                stepSize: 0.5
+                            }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11 } }
+                        }
+                    }
+                }
+            });
+        }
+    })();
+</script>
+
+</body>
+</html>
+
